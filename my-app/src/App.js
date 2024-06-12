@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Line } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
 import {
@@ -30,8 +30,48 @@ function App() {
   const [history, setHistory] = useState({ temperature: [], humidity: [], light: [] });
   const [ws, setWs] = useState(null);
 
+  const updateWebSocketConnection = useCallback((ip) => {
+    if (ws) {
+      ws.close();
+    }
+
+    const newWs = new WebSocket(`ws://192.168.43.81/ws`);
+
+    newWs.onopen = () => {
+      console.log('WebSocket connection opened');
+    };
+
+    newWs.onmessage = (event) => {
+      console.log('Received data:', event.data);
+      try {
+        const receivedData = JSON.parse(event.data);
+        console.log('Parsed JSON:', receivedData);
+        setData(receivedData);
+
+        // Update history state with new data
+        setHistory(prevHistory => ({
+          temperature: [...prevHistory.temperature, { x: new Date(), y: receivedData.temperature }],
+          humidity: [...prevHistory.humidity, { x: new Date(), y: receivedData.humidity }],
+          light: [...prevHistory.light, { x: new Date(), y: receivedData.light }]
+        }));
+      } catch (error) {
+        console.error('Failed to parse JSON:', error);
+      }
+    };
+
+    newWs.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    newWs.onclose = () => {
+      console.log('WebSocket connection closed');
+    };
+
+    setWs(newWs);
+  }, [ws]);
+
   useEffect(() => {
-    const tempWs = new WebSocket('ws://127.0.0.1/ws'); // Placeholder IP
+    const tempWs = new WebSocket('ws://192.168.43.81/ws'); // Placeholder IP
 
     tempWs.onopen = () => {
       console.log('Temporary WebSocket connection opened');
@@ -70,47 +110,7 @@ function App() {
     return () => {
       tempWs.close();
     };
-  }, []);
-
-  const updateWebSocketConnection = (ip) => {
-    if (ws) {
-      ws.close();
-    }
-
-    const newWs = new WebSocket(`ws://${ip}/ws`);
-
-    newWs.onopen = () => {
-      console.log('WebSocket connection opened');
-    };
-
-    newWs.onmessage = (event) => {
-      console.log('Received data:', event.data);
-      try {
-        const receivedData = JSON.parse(event.data);
-        console.log('Parsed JSON:', receivedData);
-        setData(receivedData);
-
-        // Update history state with new data
-        setHistory(prevHistory => ({
-          temperature: [...prevHistory.temperature, { x: new Date(), y: receivedData.temperature }],
-          humidity: [...prevHistory.humidity, { x: new Date(), y: receivedData.humidity }],
-          light: [...prevHistory.light, { x: new Date(), y: receivedData.light }]
-        }));
-      } catch (error) {
-        console.error('Failed to parse JSON:', error);
-      }
-    };
-
-    newWs.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    newWs.onclose = () => {
-      console.log('WebSocket connection closed');
-    };
-
-    setWs(newWs);
-  };
+  }, [updateWebSocketConnection]);
 
   const temperatureData = {
     datasets: [{
@@ -181,4 +181,3 @@ function App() {
 }
 
 export default App;
-
